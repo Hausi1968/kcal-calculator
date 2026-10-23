@@ -1,0 +1,50 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Versionsnummer kommt aus dem GitHub-Build (-PversionCode=…), lokal 1
+def vCode = (project.findProperty('versionCode') ?: '1').toString().toInteger()
+def vName = (project.findProperty('versionName') ?: "1.0.${vCode}").toString()
+
+android {
+    namespace 'de.hausi.kalorienkompass'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'de.hausi.kalorienkompass'
+        minSdk 24
+        targetSdk 35
+        versionCode vCode
+        versionName vName
+
+        // Inhalte kommen live von hier – Änderungen an der Website landen ohne neue APK in der App
+        buildConfigField 'String', 'WEB_URL', '"https://hausi1968.github.io/kcal-calculator/"'
+        buildConfigField 'String', 'RELEASES_API', '"https://api.github.com/repos/Hausi1968/kcal-calculator/releases/latest"'
+        buildConfigField 'String', 'APK_URL', '"https://github.com/Hausi1968/kcal-calculator/releases/latest/download/KalorienKompass.apk"'
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    signingConfigs {
+        release {
+            storeFile file(System.getenv('KEYSTORE_FILE') ?: 'kalorienkompass.jks')
+            storePassword System.getenv('KEYSTORE_PASSWORD') ?: 'kalorienkompass'
+            keyAlias System.getenv('KEY_ALIAS') ?: 'kalorienkompass'
+            keyPassword System.getenv('KEY_PASSWORD') ?: 'kalorienkompass'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Offline</title>
+<style>
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f4f1ea; color: #1b2a2b;
+         font: 16px/1.5 system-ui, sans-serif; text-align: center; padding: 24px; box-sizing: border-box; }
+  h1 { color: #0f4446; font-size: 1.3rem; }
+  button { font: inherit; background: #0f4446; color: #fff; border: 0; border-radius: 12px; padding: 12px 20px; margin-top: 12px; }
+</style>
+</head>
+<body>
+  <div>
+    <h1>Keine Verbindung</h1>
+    <p>Beim allerersten Start braucht KalorienKompass einmal Internet.<br>Danach funktioniert die App auch offline.</p>
+    <button onclick="window.AndroidApp && AndroidApp.reload()">Erneut versuchen</button>
+  </div>
+</body>
+</html>

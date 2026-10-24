@@ -59,7 +59,7 @@ public class MainActivity extends Activity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest req) {
                 Uri u = req.getUrl();
-                if (u.toString().startsWith(BuildConfig.WEB_URL)) return false;
+                if (isOwnSite(u)) return false;
                 openExternal(u.toString()); // fremde Links im Browser öffnen
                 return true;
             }
@@ -86,6 +86,14 @@ public class MainActivity extends Activity {
     public void onBackPressed() {
         if (web.canGoBack()) web.goBack();
         else super.onBackPressed();
+    }
+
+    /** Eigene Seiten (auch alte github.io-Adresse, die auf die eigene Domain umleitet) bleiben in der App */
+    private boolean isOwnSite(Uri u) {
+        String host = u.getHost();
+        if (host == null) return false;
+        String own = Uri.parse(BuildConfig.WEB_URL).getHost();
+        return host.equalsIgnoreCase(own) || host.equalsIgnoreCase("hausi1968.github.io");
     }
 
     private boolean isOnline() {

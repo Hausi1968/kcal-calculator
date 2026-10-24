@@ -18,7 +18,7 @@ android {
         versionName vName
 
         // Inhalte kommen live von hier – Änderungen an der Website landen ohne neue APK in der App
-        buildConfigField 'String', 'WEB_URL', '"https://hausi1968.github.io/kcal-calculator/"'
+        buildConfigField 'String', 'WEB_URL', '"https://kcal.hausmann-mail.de/"'
         buildConfigField 'String', 'RELEASES_API', '"https://api.github.com/repos/Hausi1968/kcal-calculator/releases/latest"'
         buildConfigField 'String', 'APK_URL', '"https://github.com/Hausi1968/kcal-calculator/releases/latest/download/KalorienKompass.apk"'
     }

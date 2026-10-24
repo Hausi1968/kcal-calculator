@@ -2,7 +2,7 @@
 
 Persönlicher Kalorienrechner: wie viele kcal pro Tag zum **Gewicht halten** und zum **Abnehmen** (z. B. 1 oder 2 kg pro Monat) – mit **Eichung an echten Daten**, **Bonus-Kalorien** für Schritte und Sport und **Hinweisen** zu Erkrankungen und Medikamenten.
 
-- **Website:** https://hausi1968.github.io/kcal-calculator/
+- **Website:** https://kcal.hausmann-mail.de/
 - **Android-App:** https://github.com/Hausi1968/kcal-calculator/releases/latest/download/KalorienKompass.apk
 
 ## Was eingegeben werden kann
@@ -35,6 +35,9 @@ tools/      Logo- und Icon-Generator (python3 tools/make_icons.py)
 ### Einmalig einrichten
 1. *Settings → Pages → Build and deployment → Source:* **GitHub Actions** wählen.
 2. Unter *Actions* den Workflow „Website veröffentlichen“ einmal starten (oder etwas in `web/` pushen).
+
+### Eigene Domain
+Die Website läuft unter kcal.hausmann-mail.de (Settings → Pages → Custom domain). Die Adresse steht in `android/app/build.gradle` (`WEB_URL`); wird die Domain geändert, braucht es einmalig eine neue APK.
 
 ### Signaturschlüssel
 Die APK wird mit `android/app/kalorienkompass.jks` signiert, damit Updates sich über die alte Version installieren lassen. Für private Nutzung reicht das. Wer die App weitergibt, legt besser einen eigenen Schlüssel als Secrets an (`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`) – der Workflow nutzt ihn dann automatisch (Achtung: einmaliger Wechsel erfordert eine Neuinstallation).

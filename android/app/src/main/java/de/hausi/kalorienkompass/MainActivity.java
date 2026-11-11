@@ -5,32 +5,39 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.net.ConnectivityManager;
-import android.net.NetworkCapabilities;
+import android.graphics.Insets;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.print.PrintAttributes;
 import android.print.PrintManager;
+import android.view.WindowInsets;
 import android.webkit.JavascriptInterface;
+import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
+import android.widget.Toast;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Schlanke Hülle um die Website.
- * - Inhalte & Rechenlogik kommen live von GitHub Pages → Updates „aus der Luft“ ohne neue APK.
+ * - Inhalte & Rechenlogik kommen live von der Website → Updates „aus der Luft“ ohne neue APK.
  * - Offline läuft die zuletzt geladene Version (Service Worker der Website).
  * - Ändert sich die App-Hülle selbst, prüft sie GitHub Releases und bietet die neue APK an.
  */
@@ -38,20 +45,41 @@ public class MainActivity extends Activity {
 
     private static final String PREFS = "kalorienkompass";
     private static final long CHECK_INTERVAL_MS = 12L * 60 * 60 * 1000; // höchstens alle 12 Stunden
+    private static final String OFFLINE_PAGE = "file:///android_asset/offline.html";
+    private static final Pattern TAG = Pattern.compile("^app-v(\\d+)$");
+    private static final int REQ_OPEN = 1, REQ_SAVE = 2;
 
     private WebView web;
+    private volatile boolean trustedPage = false;      // Brücke nur für die eigene Seite
+    private boolean clearHistoryAfterLoad = false;
+    private ValueCallback<Uri[]> fileCallback;
+    private String pendingSaveText;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(getColor(R.color.brand));
         web = new WebView(this);
-        setContentView(web);
+        root.addView(web, new FrameLayout.LayoutParams(-1, -1));
+        setContentView(root);
+
+        // Ab Android 15 zeichnen Apps randlos: Platz für Statusleiste, Navigationsleiste und Tastatur lassen
+        if (Build.VERSION.SDK_INT >= 35) {
+            root.setOnApplyWindowInsetsListener((v, insets) -> {
+                Insets bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.ime()
+                        | WindowInsets.Type.displayCutout());
+                v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+                return WindowInsets.CONSUMED;
+            });
+        }
 
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);       // localStorage → Eingaben bleiben gespeichert
-        s.setDatabaseEnabled(true);
-        s.setCacheMode(isOnline() ? WebSettings.LOAD_DEFAULT : WebSettings.LOAD_CACHE_ELSE_NETWORK);
+        s.setAllowFileAccess(false);
+        s.setAllowContentAccess(false);
         s.setUserAgentString(s.getUserAgentString() + " KalorienKompassApp/" + BuildConfig.VERSION_CODE);
 
         web.addJavascriptInterface(new Bridge(), "AndroidApp");
@@ -65,8 +93,40 @@ public class MainActivity extends Activity {
             }
 
             @Override
+            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                trustedPage = url != null && (url.equals(OFFLINE_PAGE) || isOwnSite(Uri.parse(url)));
+            }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                if (clearHistoryAfterLoad && url != null && !url.equals(OFFLINE_PAGE)) {
+                    view.clearHistory();
+                    clearHistoryAfterLoad = false;
+                }
+            }
+
+            @Override
             public void onReceivedError(WebView view, WebResourceRequest req, WebResourceError err) {
-                if (req.isForMainFrame()) view.loadUrl("file:///android_asset/offline.html");
+                if (req.isForMainFrame()) view.loadUrl(OFFLINE_PAGE);
+            }
+        });
+
+        // Datei auswählen (für „Daten wiederherstellen“)
+        web.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
+                if (fileCallback != null) fileCallback.onReceiveValue(null);
+                fileCallback = callback;
+                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                i.addCategory(Intent.CATEGORY_OPENABLE);
+                i.setType("*/*");
+                try {
+                    startActivityForResult(i, REQ_OPEN);
+                } catch (Exception e) {
+                    fileCallback = null;
+                    return false;
+                }
+                return true;
             }
         });
 
@@ -88,29 +148,46 @@ public class MainActivity extends Activity {
         else super.onBackPressed();
     }
 
-    /** Eigene Seiten (auch alte github.io-Adresse, die auf die eigene Domain umleitet) bleiben in der App */
-    private boolean isOwnSite(Uri u) {
-        String host = u.getHost();
-        if (host == null) return false;
-        String own = Uri.parse(BuildConfig.WEB_URL).getHost();
-        return host.equalsIgnoreCase(own) || host.equalsIgnoreCase("hausi1968.github.io");
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_OPEN && fileCallback != null) {
+            Uri u = resultCode == RESULT_OK && data != null ? data.getData() : null;
+            fileCallback.onReceiveValue(u != null ? new Uri[]{u} : null);
+            fileCallback = null;
+        } else if (requestCode == REQ_SAVE) {
+            String text = pendingSaveText;
+            pendingSaveText = null;
+            if (resultCode != RESULT_OK || data == null || data.getData() == null || text == null) return;
+            try (OutputStream os = getContentResolver().openOutputStream(data.getData(), "wt")) {
+                if (os == null) throw new IllegalStateException();
+                os.write(text.getBytes(StandardCharsets.UTF_8));
+                Toast.makeText(this, "Sicherung gespeichert", Toast.LENGTH_SHORT).show();
+            } catch (Exception e) {
+                Toast.makeText(this, "Speichern fehlgeschlagen", Toast.LENGTH_LONG).show();
+            }
+        }
     }
 
-    private boolean isOnline() {
-        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-        if (cm == null) return true;
-        NetworkCapabilities nc = cm.getNetworkCapabilities(cm.getActiveNetwork());
-        return nc != null && nc.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
+    /** Nur die eigene Domain (und die alte github.io-Adresse, die dorthin umleitet) bleibt in der App */
+    private boolean isOwnSite(Uri u) {
+        if (u == null || !"https".equalsIgnoreCase(u.getScheme()) || u.getHost() == null) return false;
+        String host = u.getHost();
+        String own = Uri.parse(BuildConfig.WEB_URL).getHost();
+        if (host.equalsIgnoreCase(own)) return true;
+        String path = u.getPath() == null ? "" : u.getPath();
+        return host.equalsIgnoreCase("hausi1968.github.io") && path.startsWith("/kcal-calculator");
     }
 
     private void openExternal(String url) {
         try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); } catch (Exception ignored) { }
     }
 
-    /** Brücke für die Website: Drucken/PDF und erneutes Laden der Startseite */
+    /** Brücke für die Website. Jede Methode prüft, dass gerade die eigene Seite geladen ist. */
     private class Bridge {
         @JavascriptInterface
         public void print() {
+            if (!trustedPage) return;
             runOnUiThread(() -> {
                 PrintManager pm = (PrintManager) getSystemService(Context.PRINT_SERVICE);
                 if (pm == null) return;
@@ -121,11 +198,34 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void reload() {
-            runOnUiThread(() -> web.loadUrl(BuildConfig.WEB_URL));
+            if (!trustedPage) return;
+            runOnUiThread(() -> {
+                clearHistoryAfterLoad = true;
+                web.loadUrl(BuildConfig.WEB_URL);
+            });
         }
 
         @JavascriptInterface
         public int versionCode() { return BuildConfig.VERSION_CODE; }
+
+        /** Sicherung als Datei speichern – der Nutzer wählt den Ort (z. B. Downloads oder Google Drive) */
+        @JavascriptInterface
+        public void saveFile(String name, String text) {
+            if (!trustedPage || text == null || text.length() > 20_000_000) return;
+            runOnUiThread(() -> {
+                pendingSaveText = text;
+                Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                i.addCategory(Intent.CATEGORY_OPENABLE);
+                i.setType("application/json");
+                i.putExtra(Intent.EXTRA_TITLE, name == null ? "KalorienKompass.json" : name);
+                try {
+                    startActivityForResult(i, REQ_SAVE);
+                } catch (Exception e) {
+                    pendingSaveText = null;
+                    Toast.makeText(MainActivity.this, "Kein Speicherort verfügbar", Toast.LENGTH_LONG).show();
+                }
+            });
+        }
     }
 
     /* ---------- Update der App-Hülle über GitHub Releases ---------- */
@@ -147,13 +247,14 @@ public class MainActivity extends Activity {
                     while ((line = r.readLine()) != null) sb.append(line);
                 }
                 JSONObject rel = new JSONObject(sb.toString());
-                int latest = Integer.parseInt(rel.optString("tag_name", "0").replaceAll("\\D", "").isEmpty()
-                        ? "0" : rel.optString("tag_name").replaceAll("\\D", ""));
+                Matcher m = TAG.matcher(rel.optString("tag_name", ""));
+                if (!m.matches()) return;                       // nur Tags der Form app-v123 auswerten
+                int latest = Integer.parseInt(m.group(1));
                 String apk = BuildConfig.APK_URL;
                 JSONArray assets = rel.optJSONArray("assets");
                 if (assets != null) for (int i = 0; i < assets.length(); i++) {
                     String url = assets.getJSONObject(i).optString("browser_download_url");
-                    if (url.endsWith(".apk")) { apk = url; break; }
+                    if (url.startsWith("https://github.com/") && url.endsWith(".apk")) { apk = url; break; }
                 }
                 p.edit().putLong("lastCheck", System.currentTimeMillis()).apply();
                 if (latest > BuildConfig.VERSION_CODE && p.getInt("skip", 0) != latest) {
@@ -169,7 +270,7 @@ public class MainActivity extends Activity {
     }
 
     private void showUpdateDialog(int code, String apkUrl, String notes) {
-        if (isFinishing() || (Build.VERSION.SDK_INT >= 17 && isDestroyed())) return;
+        if (isFinishing() || isDestroyed()) return;
         String msg = "Eine neue Version der App ist verfügbar (Build " + code + ").\n\n"
                 + (notes.isEmpty() ? "" : notes + "\n\n")
                 + "Nach dem Herunterladen die Datei öffnen und „Aktualisieren“ wählen. Deine Eingaben bleiben erhalten.";

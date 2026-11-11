@@ -3,8 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'">
   <title>KalorienKompass</title>
-  <meta name="description" content="Persönlicher Kalorienrechner: Bedarf zum Halten und Abnehmen, mit Kalibrierung an echten Daten, Bonus für Schritte und Sport sowie Hinweisen zu Erkrankungen und Medikamenten.">
+  <meta name="description" content="Wie viel darf ich heute essen? Kalorienbedarf zum Halten und Abnehmen, geeicht an deinen echten Werten, mit Gewichtstagebuch und Hinweisen zu Erkrankungen und Medikamenten.">
   <meta name="theme-color" content="#0f4446">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/logo.svg" type="image/svg+xml">
@@ -13,57 +14,168 @@
 </head>
 <body>
   <header class="top">
-    <img src="icons/logo.svg" alt="" class="top-logo" width="44" height="44">
-    <div>
-      <h1>KalorienKompass</h1>
-      <p class="tag">Dein Bedarf – berechnet und an der Realität geeicht</p>
-    </div>
-    <button type="button" class="ghost" id="btn-print" title="Zusammenfassung drucken oder als PDF speichern">Für den Arzt</button>
+    <img src="icons/logo.svg" alt="" class="top-logo" width="40" height="40">
+    <h1>KalorienKompass</h1>
   </header>
 
   <main>
-    <!-- ERGEBNIS zuerst sichtbar auf großen Bildschirmen, rechts -->
-    <div class="layout">
-      <form id="form" class="inputs" autocomplete="off" novalidate>
+    <!-- ============ HEUTE ============ -->
+    <section class="view" id="view-heute" data-view="heute">
+      <div class="daynav">
+        <button type="button" class="icon-btn" id="day-prev" aria-label="Vorheriger Tag">‹</button>
+        <h2 id="day-label">Heute</h2>
+        <button type="button" class="icon-btn" id="day-next" aria-label="Nächster Tag">›</button>
+      </div>
 
-        <section class="card">
-          <h2><span class="num">1</span> Körperdaten</h2>
+      <div class="card setup" id="setup" hidden>
+        <h3>Willkommen!</h3>
+        <p>Trag einmal Alter, Größe, Gewicht und dein Ziel ein. Danach siehst du hier jeden Tag, wie viel du essen kannst.</p>
+        <button type="button" class="btn primary" data-goto="profil">Profil einrichten</button>
+      </div>
+
+      <div class="card hero" id="hero" hidden>
+        <span class="hero-label">Heute essen</span>
+        <div class="hero-num"><b id="h-target">–</b><span>kcal</span></div>
+        <div class="bar" aria-hidden="true"><i id="h-bar"></i></div>
+        <p class="hero-left" id="h-left"></p>
+        <p class="hero-sub" id="h-sub"></p>
+        <p class="hero-note" id="h-note" hidden></p>
+      </div>
+
+      <div class="card" id="card-food">
+        <h3>Essen &amp; Trinken</h3>
+        <form class="addrow" id="food-form" autocomplete="off">
+          <label class="field grow"><span>Was?</span><input id="food-name" placeholder="z. B. Frühstück" maxlength="40" enterkeyhint="next"></label>
+          <label class="field kcal"><span>kcal</span><input id="food-kcal" inputmode="numeric" placeholder="0" enterkeyhint="done"></label>
+          <button type="submit" class="btn primary add" aria-label="Eintragen">+</button>
+        </form>
+        <ul class="list" id="food-list"></ul>
+        <p class="sum" id="food-sum"></p>
+      </div>
+
+      <div class="card">
+        <h3>Gewicht</h3>
+        <form class="addrow" id="weight-form" autocomplete="off">
+          <label class="field grow"><span>Heute gewogen</span><input id="weight-input" inputmode="decimal" placeholder="z. B. 92,8"><em>kg</em></label>
+          <button type="submit" class="btn primary">Speichern</button>
+        </form>
+        <p class="hint" id="weight-info">Morgens nach dem Toilettengang wiegen – zählen tut der Wochenschnitt.</p>
+      </div>
+
+      <div class="card">
+        <h3>Bewegung</h3>
+        <div class="grid">
+          <label class="field"><span>Schritte</span><input id="mv-steps" inputmode="numeric" placeholder="0"></label>
+          <label class="field"><span>Sport</span>
+            <select id="mv-met">
+              <option value="0">– keiner –</option>
+              <option value="3.0">Spazieren gehen</option>
+              <option value="4.3">Zügig gehen / Nordic Walking</option>
+              <option value="3.5">Herzsport / Kraft leicht</option>
+              <option value="5.0">Krafttraining intensiv</option>
+              <option value="4.0">Radfahren gemütlich</option>
+              <option value="6.8">Radfahren zügig</option>
+              <option value="5.0">Ergometer moderat</option>
+              <option value="5.8">Schwimmen ruhig</option>
+              <option value="3.5">Gartenarbeit</option>
+              <option value="2.5">Dart</option>
+            </select>
+          </label>
+          <label class="field"><span>Dauer</span><input id="mv-min" inputmode="numeric" placeholder="0"><em>min</em></label>
+        </div>
+        <p class="hint" id="mv-info"></p>
+      </div>
+
+      <details class="card notes" id="notes-card">
+        <summary><span id="notes-title">Hinweise für dich</span></summary>
+        <ul id="notes"></ul>
+      </details>
+    </section>
+
+    <!-- ============ VERLAUF ============ -->
+    <section class="view" id="view-verlauf" data-view="verlauf" hidden>
+      <div class="card">
+        <div class="row-between">
+          <h3>Gewichtsverlauf</h3>
+          <div class="seg small" role="radiogroup" aria-label="Zeitraum">
+            <label><input type="radio" name="range" value="30" checked><span>30 T</span></label>
+            <label><input type="radio" name="range" value="90"><span>90 T</span></label>
+            <label><input type="radio" name="range" value="9999"><span>Alle</span></label>
+          </div>
+        </div>
+        <div class="chart" id="chart"></div>
+        <p class="legend"><span class="dot"></span> Wiegung <span class="line"></span> 7-Tage-Schnitt</p>
+        <div class="stats" id="stats"></div>
+      </div>
+
+      <div class="card" id="calib-card">
+        <h3>Dein echter Bedarf</h3>
+        <div id="calib-info"></div>
+      </div>
+
+      <div class="card">
+        <h3>Letzte Tage</h3>
+        <table class="days">
+          <thead><tr><th>Tag</th><th>Gewicht</th><th>Gegessen</th><th>Schritte</th></tr></thead>
+          <tbody id="days-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ PROFIL ============ -->
+    <section class="view" id="view-profil" data-view="profil" hidden>
+      <form id="profile" autocomplete="off" novalidate>
+        <div class="card">
+          <h3>Körperdaten</h3>
           <div class="seg" role="radiogroup" aria-label="Geschlecht">
             <label><input type="radio" name="sex" value="m" checked><span>Mann</span></label>
             <label><input type="radio" name="sex" value="w"><span>Frau</span></label>
-            <label><input type="radio" name="sex" value="d"><span>Divers</span></label>
           </div>
           <div class="grid">
             <label class="field"><span>Alter</span><input name="age" inputmode="numeric" placeholder="z. B. 50"><em>Jahre</em></label>
             <label class="field"><span>Größe</span><input name="height" inputmode="decimal" placeholder="z. B. 175"><em>cm</em></label>
-            <label class="field"><span>Aktuelles Gewicht</span><input name="weight" inputmode="decimal" placeholder="z. B. 90,0"><em>kg</em></label>
-            <label class="field"><span>Körperfett <small>(optional)</small></span><input name="bodyfat" inputmode="decimal" placeholder="—"><em>%</em></label>
+            <label class="field"><span>Gewicht</span><input name="weight" inputmode="decimal" placeholder="z. B. 90"><em>kg</em></label>
+            <label class="field"><span>Bauchumfang</span><input name="waist" inputmode="decimal" placeholder="optional"><em>cm</em></label>
+            <label class="field"><span>Startgewicht</span><input name="startWeight" inputmode="decimal" placeholder="optional"><em>kg</em></label>
+            <label class="field"><span>Zielgewicht</span><input name="targetWeight" inputmode="decimal" placeholder="optional"><em>kg</em></label>
           </div>
-          <details class="more">
-            <summary>Startgewicht &amp; Zielgewicht</summary>
-            <div class="grid">
-              <label class="field"><span>Startgewicht</span><input name="startWeight" inputmode="decimal" placeholder="—"><em>kg</em></label>
-              <label class="field"><span>Zielgewicht</span><input name="targetWeight" inputmode="decimal" placeholder="—"><em>kg</em></label>
-            </div>
-            <p class="hint">Mit dem Startgewicht erkennt der Rechner, ob nach starkem Abnehmen eine Stoffwechsel­anpassung wahrscheinlich ist.</p>
-          </details>
-        </section>
+          <p class="hint">Das Gewicht wird automatisch aktualisiert, wenn du dich unter „Heute“ wiegst. Bauchumfang auf Höhe des Bauchnabels messen.</p>
+        </div>
 
-        <section class="card">
-          <h2><span class="num">2</span> Alltag</h2>
-          <label class="field wide"><span>Tätigkeit / Grundaktivität</span>
-            <select name="pal">
-              <option value="1.2" selected>Sitzend, kaum Bewegung (× 1,2)</option>
-              <option value="1.375">Leicht aktiv – viel Stehen/Gehen im Job (× 1,375)</option>
-              <option value="1.55">Mäßig aktiv – körperliche Arbeit (× 1,55)</option>
-              <option value="1.725">Sehr aktiv – schwere körperliche Arbeit (× 1,725)</option>
+        <div class="card">
+          <h3>Ziel</h3>
+          <label class="field wide"><span>Abnehmen pro Monat</span>
+            <select name="goal">
+              <option value="0">Gewicht halten</option>
+              <option value="0.5">0,5 kg pro Monat</option>
+              <option value="1" selected>1 kg pro Monat</option>
+              <option value="1.5">1,5 kg pro Monat</option>
+              <option value="2">2 kg pro Monat</option>
+              <option value="3">3 kg pro Monat</option>
             </select>
           </label>
-          <p class="hint">Schritte und Sport gehören <strong>nicht</strong> hier hinein – die zählen unten als Bonus.</p>
-        </section>
+          <label class="check"><input type="checkbox" name="supervised"><span>Ich werde ärztlich begleitet (Hausarzt, Diabetologe o. Ä.)</span></label>
+          <p class="hint">Ohne ärztliche Begleitung zeigt der Rechner nie weniger als 1.500 kcal (Frauen 1.200 kcal) an.</p>
+        </div>
 
-        <section class="card">
-          <h2><span class="num">3</span> Gesundheit</h2>
+        <div class="card">
+          <h3>Alltag</h3>
+          <label class="field wide"><span>Beruf / Alltag</span>
+            <select name="pal">
+              <option value="1.2" selected>Überwiegend sitzend</option>
+              <option value="1.4">Viel stehen und gehen</option>
+              <option value="1.6">Körperlich schwere Arbeit</option>
+            </select>
+          </label>
+          <label class="field wide"><span>Schritte an einem normalen Tag (ohne Sport)</span><input name="usualSteps" inputmode="numeric" placeholder="z. B. 3000"></label>
+          <p class="hint">Diese Bewegung steckt im Bedarf schon drin. Bonus gibt es nur für das, was du darüber hinaus gehst.</p>
+          <label class="field wide range"><span>Bonus zurückessen: <b id="eatbackVal">50 %</b></span>
+            <input type="range" name="eatback" min="0" max="100" step="10" value="50">
+          </label>
+        </div>
+
+        <div class="card">
+          <h3>Gesundheit</h3>
           <fieldset>
             <legend>Erkrankungen</legend>
             <div class="chips" data-group="conditions">
@@ -80,133 +192,103 @@
           <fieldset>
             <legend>Medikamente</legend>
             <div class="chips" data-group="meds">
-              <label><input type="checkbox" value="glp1"><span>GLP-1 (Ozempic, Wegovy, Mounjaro …)</span></label>
+              <label><input type="checkbox" value="semaglutid"><span>Ozempic / Wegovy (Semaglutid)</span></label>
+              <label><input type="checkbox" value="tirzepatid"><span>Mounjaro (Tirzepatid)</span></label>
+              <label><input type="checkbox" value="glp1other"><span>anderes GLP-1 (Victoza, Trulicity …)</span></label>
               <label><input type="checkbox" value="insulin"><span>Insulin</span></label>
               <label><input type="checkbox" value="su"><span>Sulfonylharnstoffe (Glimepirid …)</span></label>
               <label><input type="checkbox" value="sglt2"><span>SGLT2-Hemmer (Jardiance, Forxiga …)</span></label>
               <label><input type="checkbox" value="metformin"><span>Metformin</span></label>
               <label><input type="checkbox" value="betablocker"><span>Betablocker</span></label>
               <label><input type="checkbox" value="diuretic"><span>Entwässerung (Diuretika)</span></label>
+              <label><input type="checkbox" value="statin"><span>Statin</span></label>
               <label><input type="checkbox" value="cortison"><span>Kortison</span></label>
               <label><input type="checkbox" value="psych"><span>Antidepressiva / Neuroleptika</span></label>
             </div>
           </fieldset>
-          <label class="field wide"><span>Weitere Medikamente / Notizen <small>(optional)</small></span>
-            <input name="medsOther" placeholder="z. B. Statin, ASS …">
-          </label>
-        </section>
+          <label class="field wide"><span>Weitere Medikamente / Notizen</span><input name="medsOther" placeholder="optional"></label>
+        </div>
 
-        <section class="card">
-          <h2><span class="num">4</span> Mit echten Daten eichen</h2>
-          <p class="hint">Formeln schätzen nur. Wenn du einige Wochen lang deine Kalorien und dein Gewicht kennst, rechnet der Rechner deinen <strong>tatsächlichen</strong> Bedarf zurück.</p>
-          <div class="grid">
-            <label class="field"><span>Ø gegessen pro Tag</span><input name="calIntake" inputmode="numeric" placeholder="z. B. 1600"><em>kcal</em></label>
-            <label class="field"><span>Zeitraum</span><input name="calWeeks" inputmode="decimal" placeholder="z. B. 4"><em>Wochen</em></label>
-            <label class="field"><span>Gewichtsänderung</span><input name="calChange" inputmode="decimal" placeholder="z. B. −0,5 oder 0"><em>kg</em></label>
+        <div class="card">
+          <h3>Echten Bedarf ermitteln</h3>
+          <p class="hint lead">Formeln schätzen nur. Aus deinen echten Werten lässt sich der tatsächliche Bedarf zurückrechnen.</p>
+          <div class="seg stack" role="radiogroup" aria-label="Eichung">
+            <label><input type="radio" name="calibMode" value="auto" checked><span>Aus meinem Tagebuch</span></label>
+            <label><input type="radio" name="calibMode" value="manual"><span>Eigene Werte eingeben</span></label>
+            <label><input type="radio" name="calibMode" value="off"><span>Nur Formel</span></label>
           </div>
-          <label class="switch"><input type="checkbox" name="useCalib" checked><span>Geeichten Wert für die Ziele verwenden</span></label>
-        </section>
+          <p class="hint" data-show="auto">Klappt automatisch, sobald du 3 Wochen lang dein Gewicht und an mindestens 14 Tagen dein Essen eingetragen hast.</p>
+          <div data-show="manual">
+            <div class="grid">
+              <label class="field"><span>Ø gegessen pro Tag</span><input name="calIntake" inputmode="numeric" placeholder="z. B. 1600"><em>kcal</em></label>
+              <label class="field"><span>Zeitraum</span><input name="calWeeks" inputmode="decimal" placeholder="mind. 3"><em>Wochen</em></label>
+              <label class="field"><span>Gewichtsänderung</span><input name="calChange" inputmode="decimal" placeholder="z. B. −0,5"><em>kg</em></label>
+            </div>
+            <p class="hint">Für die Gewichtsänderung den Wochenschnitt am Anfang und am Ende vergleichen, nicht zwei einzelne Tage.</p>
+          </div>
+          <details class="more">
+            <summary>Körperfettanteil (für Fortgeschrittene)</summary>
+            <label class="field"><span>Körperfett</span><input name="bodyfat" inputmode="decimal" placeholder="leer lassen"><em>%</em></label>
+            <p class="hint">Nur eintragen, wenn er genau gemessen wurde (z. B. DEXA). Werte von Haushaltswaagen liegen oft 5 % daneben.</p>
+          </details>
+        </div>
 
-        <section class="card">
-          <h2><span class="num">5</span> Bonus für heute</h2>
-          <div class="grid">
-            <label class="field"><span>Schritte</span><input name="steps" inputmode="numeric" placeholder="z. B. 8000"></label>
-            <label class="field"><span>Sport</span>
-              <select name="sport">
-                <option value="0">– keiner –</option>
-                <option value="3.0">Spazieren gehen</option>
-                <option value="3.5">Krafttraining leicht / Herzsport</option>
-                <option value="5.0">Krafttraining intensiv</option>
-                <option value="4.3">Zügig gehen / Nordic Walking</option>
-                <option value="4.0">Radfahren gemütlich</option>
-                <option value="6.8">Radfahren zügig</option>
-                <option value="5.8">Schwimmen ruhig</option>
-                <option value="5.0">Ergometer moderat</option>
-                <option value="2.5">Dart</option>
-                <option value="3.5">Gartenarbeit</option>
-              </select>
-            </label>
-            <label class="field"><span>Dauer</span><input name="sportMin" inputmode="numeric" placeholder="0"><em>min</em></label>
+        <div class="card">
+          <h3>Daten</h3>
+          <div class="btn-col">
+            <button type="button" class="btn" id="btn-print">Zusammenfassung für den Arzt</button>
+            <button type="button" class="btn" id="btn-export">Daten sichern (Export)</button>
+            <button type="button" class="btn" id="btn-import">Daten wiederherstellen (Import)</button>
+            <button type="button" class="btn danger" id="btn-reset">Alles löschen</button>
           </div>
-          <label class="field wide range"><span>Davon zurückessen: <b id="eatbackVal">50 %</b></span>
-            <input type="range" name="eatback" min="0" max="100" step="10" value="50">
-          </label>
-          <p class="hint">Fitness-Uhren und Rechner überschätzen den Verbrauch oft. Die Hälfte zurückzuessen ist ein sicherer Mittelweg.</p>
-        </section>
-
-        <section class="card">
-          <h2><span class="num">6</span> Ziele</h2>
-          <p class="hint">Abnehmen in kg pro Monat – bis zu drei Ziele zum Vergleich.</p>
-          <div class="grid three">
-            <label class="field"><span>Ziel A</span><input name="g1" inputmode="decimal" value="1"><em>kg/Mon.</em></label>
-            <label class="field"><span>Ziel B</span><input name="g2" inputmode="decimal" value="2"><em>kg/Mon.</em></label>
-            <label class="field"><span>Ziel C</span><input name="g3" inputmode="decimal" placeholder="—"><em>kg/Mon.</em></label>
-          </div>
-        </section>
+          <p class="hint">Alle Daten bleiben nur auf diesem Gerät. Vor einem Handywechsel oder einer Neuinstallation sichern!</p>
+          <input type="file" id="import-file" accept="application/json,.json,text/plain" hidden>
+        </div>
       </form>
+    </section>
 
-      <aside class="results" id="results" aria-live="polite">
-        <div class="card result-card">
-          <div class="empty" id="empty">
-            <img src="icons/logo.svg" alt="" width="72" height="72">
-            <p>Gib Alter, Größe und Gewicht ein – das Ergebnis erscheint sofort hier.</p>
-          </div>
-          <div id="out" hidden>
-            <div class="kpis">
-              <div class="kpi"><span>Grundumsatz</span><b id="k-bmr">–</b><small id="k-bmr-src">kcal (Ruhe)</small></div>
-              <div class="kpi"><span>Erhalt laut Formel</span><b id="k-tdee">–</b><small>kcal / Tag</small></div>
-              <div class="kpi accent" id="kpi-cal" hidden><span>Erhalt geeicht</span><b id="k-cal">–</b><small id="k-cal-diff"></small></div>
-            </div>
-
-            <h3>Pro Tag essen</h3>
-            <ul class="goals" id="goals"></ul>
-
-            <div class="bonus" id="bonus" hidden>
-              <div><span>Bonus heute</span><b id="b-total">+0</b></div>
-              <p id="b-detail"></p>
-            </div>
-
-            <div class="facts">
-              <div><span>BMI</span><b id="f-bmi">–</b></div>
-              <div><span>Eiweiß</span><b id="f-protein">–</b></div>
-              <div id="f-target-wrap" hidden><span>Bis zum Zielgewicht</span><b id="f-target">–</b></div>
-            </div>
-          </div>
-        </div>
-
-        <div class="card notes" id="notes-card" hidden>
-          <h3>Hinweise für dich</h3>
-          <ul id="notes"></ul>
-        </div>
-      </aside>
-    </div>
-
-    <section class="card explain">
-      <h2>So wird gerechnet</h2>
-      <ul>
-        <li><b>Grundumsatz</b> nach Mifflin-St-Jeor; mit Körperfettanteil nach Katch-McArdle.</li>
-        <li><b>Erhalt</b> = Grundumsatz × Aktivitätsfaktor. Bewegung zählt extra als Bonus.</li>
-        <li><b>Abnehmen</b>: 1 kg Fett ≈ 7.000 kcal, also ca. 230 kcal Defizit pro Tag je kg pro Monat.</li>
-        <li><b>Eichen</b>: tatsächlicher Bedarf = Ø gegessen − (Gewichtsänderung × 7.000 ÷ Tage).</li>
-        <li><b>Schritte</b>: ca. 0,4 kcal je 1.000 Schritte und kg; <b>Sport</b> über MET-Werte (netto).</li>
-      </ul>
-      <p class="disclaimer">Der Rechner ersetzt keine ärztliche Beratung. Bei Herz-, Nieren- oder Stoffwechselerkrankungen und bei blutzuckersenkenden Medikamenten Kalorienziele und Training mit dem Arzt abstimmen. Alle Eingaben bleiben auf deinem Gerät.</p>
+    <!-- ============ INFO ============ -->
+    <section class="view" id="view-info" data-view="info" hidden>
+      <div class="card">
+        <h3>So wird gerechnet</h3>
+        <ul class="plain">
+          <li><b>Grundumsatz</b>: Mifflin-St-Jeor-Formel (mit genau gemessenem Körperfett: Katch-McArdle).</li>
+          <li><b>Bedarf zum Halten</b>: Grundumsatz × Alltagsfaktor (sitzend 1,2 · stehend/gehend 1,4 · schwer 1,6).</li>
+          <li><b>Echter Bedarf</b>: Ø gegessene kcal minus Gewichtstrend × 7.000 kcal je kg. Aus dem Tagebuch über die letzten 4 Wochen, mit einer Trendlinie durch alle Wiegungen – so stören einzelne Wassertage kaum.</li>
+          <li><b>Abnehmen</b>: 1 kg Fett ≈ 7.000 kcal, also ca. 230 kcal weniger pro Tag je kg pro Monat.</li>
+          <li><b>Bonus</b>: Schritte (≈ 0,4 kcal je 1.000 Schritte und kg) und Sport (MET-Werte) – nur der Teil über deinem normalen Tag, davon der eingestellte Anteil.</li>
+          <li><b>Eiweiß</b>: 1,2–1,5 g je kg angepasstem Körpergewicht.</li>
+        </ul>
+        <p class="disclaimer">Der Rechner ersetzt keine ärztliche Beratung. Bei Herz-, Nieren- oder Stoffwechselerkrankungen und blutzuckersenkenden Medikamenten Kalorienziel und Training mit dem Arzt abstimmen.</p>
+      </div>
+      <div class="card">
+        <h3>Über</h3>
+        <p>KalorienKompass <span id="ver"></span></p>
+        <p><a id="apk-link" href="https://github.com/Hausi1968/kcal-calculator/releases/latest/download/KalorienKompass.apk">Android-App herunterladen</a></p>
+      </div>
     </section>
   </main>
 
-  <footer class="foot">
-    <span>KalorienKompass <span id="ver"></span></span>
-    <span>
-      <a class="link" id="apk-link" href="https://github.com/Hausi1968/kcal-calculator/releases/latest/download/KalorienKompass.apk">Android-App</a>
-      <button type="button" class="link" id="btn-reset">Eingaben löschen</button>
-    </span>
-  </footer>
+  <nav class="tabs" aria-label="Bereiche">
+    <a href="#heute" data-tab="heute"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c2 3.5 6 5.5 6 10a6 6 0 0 1-12 0c0-2.6 1.3-4.2 2.5-5.4.2 2 1 3 2 3.4-.3-2.8-.2-5 1.5-8z"/></svg><span>Heute</span></a>
+    <a href="#verlauf" data-tab="verlauf"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16M5 15l4-4 3 3 7-7"/></svg><span>Verlauf</span></a>
+    <a href="#profil" data-tab="profil"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg><span>Profil</span></a>
+    <a href="#info" data-tab="info"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg><span>Info</span></a>
+  </nav>
 
   <div class="toast" id="toast" hidden></div>
 
-  <!-- Druckansicht -->
+  <dialog id="dlg">
+    <form method="dialog">
+      <h3 id="dlg-title"></h3>
+      <div id="dlg-body"></div>
+      <div class="dlg-actions" id="dlg-actions"></div>
+    </form>
+  </dialog>
+
   <section class="print-only" id="print"></section>
 
+  <script src="version.js"></script>
   <script src="calc.js"></script>
   <script src="app.js"></script>
 </body>

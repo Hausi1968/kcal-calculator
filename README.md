@@ -1,23 +1,27 @@
 # KalorienKompass
 
-Persönlicher Kalorienrechner: wie viele kcal pro Tag zum **Gewicht halten** und zum **Abnehmen** (z. B. 1 oder 2 kg pro Monat) – mit **Eichung an echten Daten**, **Bonus-Kalorien** für Schritte und Sport und **Hinweisen** zu Erkrankungen und Medikamenten.
+Persönlicher Kalorienrechner: **Wie viel darf ich heute essen?** – mit Essen-, Gewichts- und Bewegungstagebuch, **echtem Bedarf aus den eigenen Daten**, Bonus für Bewegung über dem Üblichen und **Hinweisen** zu Erkrankungen und Medikamenten.
 
 - **Website:** https://kcal.hausmann-mail.de/
 - **Android-App:** https://github.com/Hausi1968/kcal-calculator/releases/latest/download/KalorienKompass.apk
 
-## Was eingegeben werden kann
-Geschlecht, Alter, Größe, Gewicht, Körperfett (optional), Start- und Zielgewicht, Grundaktivität, Erkrankungen (Diabetes, KHK/Bypass, Herzschwäche, Bluthochdruck, Nieren, Schilddrüse …), Medikamente (GLP-1/Ozempic, Insulin, Sulfonylharnstoffe, SGLT2, Metformin, Betablocker …), echte Werte zur Eichung, Schritte und Sport, eigene Ziele.
-Alle Eingaben bleiben auf dem Gerät (localStorage). „Für den Arzt“ erstellt eine Zusammenfassung zum Drucken oder als PDF.
+## Bereiche
+- **Heute:** eine Zahl „Heute essen“ (inkl. Bewegungsbonus), Essen eintragen mit „noch X kcal übrig“, Gewicht, Schritte und Sport. Mit ‹ › lassen sich vergangene Tage nachtragen.
+- **Verlauf:** Gewichtsdiagramm mit 7-Tage-Schnitt, echter Bedarf aus dem Tagebuch, Tabelle der letzten 14 Tage.
+- **Profil:** Körperdaten, Bauchumfang, Ziel, ärztliche Begleitung, Alltag, Erkrankungen und Medikamente, Eichung, Zusammenfassung für den Arzt, Daten sichern/wiederherstellen.
+- **Info:** Rechenweg.
+
+Alle Daten bleiben auf dem Gerät (localStorage, Schlüssel `kalorienkompass.v2`). Vor einem Handywechsel unter *Profil → Daten sichern* exportieren.
 
 ## Rechenweg
 | Größe | Formel |
 |---|---|
-| Grundumsatz | Mifflin-St-Jeor, mit Körperfett Katch-McArdle |
-| Erhalt | Grundumsatz × Aktivitätsfaktor (Bewegung zählt extra) |
-| Defizit | kg pro Monat × 7.000 kcal ÷ 30,44 Tage |
-| Eichung | Ø kcal − Gewichtsänderung × 7.000 ÷ Tage |
-| Schritte | Schritte × kg × 0,0004 (netto) |
-| Sport | (MET − 1) × kg × Stunden |
+| Grundumsatz | Mifflin-St-Jeor, mit genau gemessenem Körperfett Katch-McArdle |
+| Bedarf zum Halten | Grundumsatz × Alltagsfaktor 1,2 / 1,4 / 1,6 |
+| Echter Bedarf (Tagebuch) | Ø kcal der vollständigen Tage (≥ 800 kcal) − Steigung der Gewichts-Regressionsgeraden × 7.000; letzte 28 Tage, mind. 14 Essenstage, 6 Wiegungen über 21 Tage |
+| Echter Bedarf (manuell) | Ø kcal − Gewichtsänderung × 7.000 ÷ Tage, ab 3 Wochen |
+| Ziel | Bedarf − kg pro Monat × 7.000 ÷ 30,44; ohne ärztliche Begleitung nie unter 1.500 (Frauen 1.200) kcal |
+| Bonus | (Bewegung heute − übliche Bewegung) × Anteil zurückessen; Schritte × kg × 0,0004, Sport (MET − 1) × kg × h |
 | Eiweiß | 1,2–1,5 g je kg angepasstem Bezugsgewicht |
 
 Der Rechner ersetzt keine ärztliche Beratung.
@@ -29,7 +33,7 @@ android/    Android-App: WebView-Hülle, lädt die Website
 test/       Tests für den Rechenkern (node test/calc.test.js)
 tools/      Logo- und Icon-Generator (python3 tools/make_icons.py)
 ```
-- **Inhalte ändern** (Rechner, Texte, Design): Dateien in `web/` ändern und pushen. GitHub Pages veröffentlicht automatisch – die App lädt beim nächsten Öffnen die neue Version, **ohne neue APK**. In `web/sw.js` die `VERSION` erhöhen, damit offene Apps den Hinweis „Neue Version verfügbar“ zeigen.
+- **Inhalte ändern** (Rechner, Texte, Design): Dateien in `web/` ändern und pushen. GitHub Pages veröffentlicht automatisch – die App lädt beim nächsten Öffnen die neue Version, **ohne neue APK**. In `web/version.js` die Versionsnummer erhöhen, damit offene Apps den Hinweis „Neue Version verfügbar“ zeigen.
 - **App-Hülle ändern** (`android/`): Pushen startet den Build, die neue APK erscheint als GitHub-Release. Die installierte App findet das Release selbst und bietet das Update an.
 
 ### Einmalig einrichten

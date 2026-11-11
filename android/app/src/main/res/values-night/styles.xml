@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand">#0F1717</color>
+    <color name="bg">#0F1717</color>
+
+    <!-- Dunkles Theme → die Website bekommt prefers-color-scheme: dark -->
+    <style name="AppTheme" parent="android:Theme.Material.NoActionBar">
+        <item name="android:colorPrimary">@color/brand</item>
+        <item name="android:colorPrimaryDark">@color/brand</item>
+        <item name="android:colorAccent">#F08A62</item>
+        <item name="android:statusBarColor">@color/brand</item>
+        <item name="android:navigationBarColor">@color/brand</item>
+        <item name="android:windowBackground">@color/bg</item>
+    </style>
+</resources>

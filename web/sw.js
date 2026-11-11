@@ -11,19 +11,26 @@ const CORE = [
 const TIMEOUT_MS = 3000;
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(CORE)).then(() => self.skipWaiting()));
+  // cache: "reload" → am Browser-Zwischenspeicher vorbei immer frisch vom Server holen
+  e.waitUntil(caches.open(CACHE)
+    .then((c) => c.addAll(CORE.map((u) => new Request(u, { cache: "reload" }))))
+    .then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (e) => {
-  e.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k.startsWith("kalorienkompass-") && k !== CACHE).map((k) => caches.delete(k))))
-      .then(() => self.clients.claim())
-  );
+  e.waitUntil((async () => {
+    const old = (await caches.keys()).filter((k) => k.startsWith("kalorienkompass-") && k !== CACHE);
+    await Promise.all(old.map((k) => caches.delete(k)));
+    await self.clients.claim();
+  })());
 });
 
 function fromNetwork(req) {
-  return fetch(req, { cache: "no-cache" }).then((res) => {
+  // Achtung: fetch(navigationsRequest, {…}) wirft in Chrome einen Fehler – Seitenaufrufe daher über die URL laden
+  const p = req.mode === "navigate"
+    ? fetch(req.url, { cache: "no-cache", credentials: "same-origin" })
+    : fetch(req, { cache: "no-cache" });
+  return p.then((res) => {
     // Nur echte, eigene Antworten speichern – keine Weiterleitungen (z. B. WLAN-Anmeldeseiten)
     if (res.ok && !res.redirected && res.type === "basic") {
       const copy = res.clone();

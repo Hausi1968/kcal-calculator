@@ -3,8 +3,17 @@
   "use strict";
   const C = window.KCalc;
   // Passt calc.js nicht zu dieser app.js (z. B. halb aktualisierter Cache)? Einmal frisch laden.
-  if (!C || C.API !== 2) {
-    try { if (!sessionStorage.getItem("kk-reload")) { sessionStorage.setItem("kk-reload", "1"); location.reload(); return; } } catch (e) {}
+  // Ebenso, wenn die Seite (HTML) älter ist als dieses Skript
+  if (!C || C.API !== 2 || !document.getElementById("view-heute")) {
+    let tried = false;
+    try { tried = !!sessionStorage.getItem("kk-reload"); if (!tried) sessionStorage.setItem("kk-reload", "1"); } catch (e) { tried = true; }
+    if (!tried) { location.reload(); return; }
+    // Schon versucht: nicht endlos neu laden, sondern Hinweis zeigen (der Service Worker lädt nach dem Update selbst neu)
+    const msg = document.createElement("p");
+    msg.textContent = "Die App wird gerade aktualisiert. Bitte schließen und neu öffnen.";
+    msg.style.cssText = "margin:16px;padding:14px;border-radius:12px;background:#fdf0e3;color:#1b2a2b;font:17px system-ui";
+    document.body.prepend(msg);
+    return;
   }
   try { sessionStorage.removeItem("kk-reload"); } catch (e) {}
   const VERSION = self.APP_VERSION || "?";
@@ -733,7 +742,7 @@
   });
 
   // Updates „aus der Luft“
-  if ("serviceWorker" in navigator && location.protocol === "https:") {
+  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
     navigator.serviceWorker.register("sw.js").then((reg) => {
       reg.addEventListener("updatefound", () => {
         const nw = reg.installing;

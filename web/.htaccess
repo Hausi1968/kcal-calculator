@@ -1,0 +1,12 @@
+# KalorienKompass – Programmdateien nie veraltet aus dem Zwischenspeicher liefern
+<IfModule mod_headers.c>
+  <FilesMatch "\.(html|js|css|webmanifest|json)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+  <FilesMatch "^sw\.js$">
+    Header set Cache-Control "no-cache, no-store"
+  </FilesMatch>
+</IfModule>
+<IfModule mod_mime.c>
+  AddType application/manifest+json .webmanifest
+</IfModule>

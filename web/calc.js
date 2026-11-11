@@ -86,7 +86,7 @@
       if (!d) continue;
       if (d.w > 0) weights.push({ x: i, y: d.w });
       const t = foodTotal(d);
-      if (t >= COMPLETE_DAY_KCAL) {
+      if (key !== today && t >= COMPLETE_DAY_KCAL) {   // heute ist noch nicht vollständig
         intakes.push(t);
         const hasSteps = d.steps > 0;
         moves.push(movementKcal({ steps: hasSteps ? d.steps : usualSteps, met: d.met, min: d.min }, weightKg));
@@ -151,7 +151,9 @@
     const baseline = calibUsed && calib.baselineMovement != null
       ? calib.baselineMovement
       : stepsKcal(usual, p.weightKg);
-    const todayMove = movementKcal(today, p.weightKg);
+    const t = today || {};
+    // Keine Schritte eingetragen → wie ein normaler Tag rechnen (so wie bei der Eichung)
+    const todayMove = movementKcal({ steps: t.steps > 0 ? t.steps : usual, met: t.met, min: t.min }, p.weightKg);
     const extra = todayMove - baseline > 1 ? todayMove - baseline : 0;
     const eatback = (p.eatbackPct == null ? 50 : p.eatbackPct) / 100;
     const bonus = extra * eatback;
@@ -178,6 +180,7 @@
   }
 
   const api = {
+    API: 2,
     KCAL_PER_KG, DAYS_PER_MONTH, MIN_KCAL, COMPLETE_DAY_KCAL,
     bmrMifflin, bmrKatch, dailyDeficit, stepsKcal, sportKcal, movementKcal, proteinRange, bmi, whtr,
     round10, iso, parseIso, addDays, dayDiff, foodTotal, slope, weightMean,

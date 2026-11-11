@@ -26,6 +26,10 @@ near(r.todayTarget, r.goal.kcal + r.bonus.kcal);
 r = C.calculate(P, null, { steps: 2000 });
 near(r.bonus.kcal, 0, 0.001);
 
+// Nur Sport, keine Schritte eingetragen → Schritte wie an einem normalen Tag, Sport zählt voll
+r = C.calculate({ ...P, weightKg: 100 }, null, { met: 3.5, min: 45 });
+near(r.bonus.extra, C.sportKcal(3.5, 45, 100), 0.5);
+
 // Manuelle Eichung: unter 3 Wochen nicht verwendet
 assert.strictEqual(C.calibrateManual({ avgIntake: 1550, weeks: 2, weightChangeKg: 0 }).ok, false);
 const man = C.calibrateManual({ avgIntake: 1550, weeks: 8, weightChangeKg: 0 });
@@ -58,6 +62,9 @@ near(cal.baselineMovement, C.stepsKcal(4000, 93.2));
 // mit Eichung: Bonus erst über den geloggten Ø-Schritten
 r = C.calculate(P, cal, { steps: 4000 });
 near(r.bonus.kcal, 0, 0.001);
+
+// heutiger (unvollständiger) Tag zählt nicht zur Eichung
+assert.strictEqual(cal.intakeDays, 27);
 
 // zu wenig Daten
 const few = C.calibrateFromLog({ [today]: { w: 93, food: [{ k: 1500 }] } }, { today, weightKg: 93 });

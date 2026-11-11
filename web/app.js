@@ -2,6 +2,11 @@
 (function () {
   "use strict";
   const C = window.KCalc;
+  // Passt calc.js nicht zu dieser app.js (z. B. halb aktualisierter Cache)? Einmal frisch laden.
+  if (!C || C.API !== 2) {
+    try { if (!sessionStorage.getItem("kk-reload")) { sessionStorage.setItem("kk-reload", "1"); location.reload(); return; } } catch (e) {}
+  }
+  try { sessionStorage.removeItem("kk-reload"); } catch (e) {}
   const VERSION = self.APP_VERSION || "?";
   const KEY = "kalorienkompass.v2";
   const OLD_KEY = "kalorienkompass.v1";
@@ -31,7 +36,7 @@
   function load() {
     try {
       const raw = localStorage.getItem(KEY);
-      if (raw) { const s = JSON.parse(raw); state = { v: 2, profile: { ...DEFAULT_PROFILE, ...s.profile }, days: s.days || {} }; return; }
+      if (raw) { const s = JSON.parse(raw); state = { v: 2, profile: sanitizeProfile(s.profile || {}), days: sanitizeDays(s.days) }; return; }
       const old = localStorage.getItem(OLD_KEY);
       if (old) migrate(JSON.parse(old));
     } catch (e) { /* Speicher nicht verfügbar → mit leerem Zustand weiter */ }
@@ -64,7 +69,8 @@
     if (!d) return;
     if (d.food && !d.food.length) delete d.food;
     if (!(d.steps > 0)) delete d.steps;
-    if (!(d.met > 0) || !(d.min > 0)) { delete d.met; delete d.min; delete d.sp; }
+    if (!(d.met > 0)) { delete d.met; delete d.sp; }
+    if (!(d.min > 0)) delete d.min;
     if (!(d.w > 0)) delete d.w;
     if (!Object.keys(d).length) delete state.days[key];
   }
@@ -103,7 +109,7 @@
 
   /* ================= Navigation ================= */
   const VIEWS = ["heute", "verlauf", "profil", "info"];
-  function route() {
+  function route(keepScroll) {
     let v = location.hash.replace("#", "");
     if (!VIEWS.includes(v)) v = "heute";
     VIEWS.forEach((x) => { $(`#view-${x}`).hidden = x !== v; });
@@ -111,9 +117,9 @@
     if (v === "heute") renderHeute();
     if (v === "verlauf") renderVerlauf();
     if (v === "profil") renderProfilState();
-    window.scrollTo(0, 0);
+    if (keepScroll !== true) window.scrollTo(0, 0);
   }
-  window.addEventListener("hashchange", route);
+  window.addEventListener("hashchange", () => route());
   $$("[data-goto]").forEach((b) => b.addEventListener("click", () => { location.hash = b.dataset.goto; }));
 
   /* ================= HEUTE ================= */
@@ -146,10 +152,12 @@
       const del = el("button", null, "×");
       del.type = "button"; del.setAttribute("aria-label", "Eintrag löschen");
       del.addEventListener("click", () => {
+        const key = viewDay;
         const removed = d.food.splice(i, 1)[0];
-        cleanDay(viewDay); save(); renderHeute();
+        cleanDay(key); save(); renderHeute();
         toast("Eintrag gelöscht.", "Rückgängig", () => {
-          const dd = day(viewDay, true); dd.food = dd.food || []; dd.food.splice(i, 0, removed); save(); renderHeute(); hideToast();
+          const dd = day(key, true); dd.food = dd.food || []; dd.food.splice(Math.min(i, dd.food.length), 0, removed);
+          save(); renderHeute(); hideToast();
         });
       });
       li.append(del);
@@ -304,9 +312,9 @@
       add("Unterzuckerung vermeiden",
         `Insulin und Sulfonylharnstoffe senken den Blutzucker auch, wenn du wenig isst. Weniger essen oder mehr Bewegung nur nach Absprache – oft muss die Dosis angepasst werden. Kohlenhydrate gleichmäßig über den Tag verteilen und häufiger messen.${is("betablocker") ? " Achtung: Betablocker können Warnzeichen wie Zittern oder Herzrasen abschwächen." : ""}`, true);
 
-    if (is("semaglutid"))
-      add("Ozempic / Wegovy",
-        "Für Semaglutid ist belegt, dass es bei Menschen mit Herz-Kreislauf-Erkrankung das Risiko für Herzinfarkt und Schlaganfall senkt – ein guter Grund, es auch ohne weitere Abnahme zu nehmen.");
+    if (is("semaglutid") && heart)
+      add("Ozempic / Wegovy und Herz",
+        "Für Semaglutid ist belegt, dass es bei Menschen mit Herz-Kreislauf-Erkrankung das Risiko für Herzinfarkt und Schlaganfall senkt – unabhängig davon, wie viel man damit abnimmt. Ein Stillstand auf der Waage ist also kein Grund, es abzusetzen; das immer mit dem Arzt besprechen.");
     if (glp1)
       add("GLP-1-Wirkstoff",
         `Der Appetit ist gedämpft – trotzdem genug Eiweiß essen und genug trinken. Bei Erbrechen oder Durchfall besonders auf Flüssigkeit achten${is("sglt2") || is("diuretic") ? ", vor allem zusammen mit SGLT2-Hemmern oder Entwässerungstabletten (Nieren)" : ""}. Ob die Dosis passt, entscheidet der Arzt.${is("tirzepatid") || is("glp1other") ? " Ob dein Wirkstoff auch das Herz schützt, ist je nach Präparat unterschiedlich belegt – frag deinen Arzt." : ""}`);
@@ -588,10 +596,45 @@
     if (!data || typeof data !== "object" || typeof data.profile !== "object" || typeof (data.days || {}) !== "object") {
       toast("Das ist keine gültige Sicherung."); return;
     }
-    if (!confirm("Alle Daten auf diesem Gerät durch die Sicherung ersetzen?")) return;
-    state = { v: 2, profile: { ...DEFAULT_PROFILE, ...data.profile }, days: data.days || {} };
+    const days = sanitizeDays(data.days || {});
+    if (!confirm(`Alle Daten auf diesem Gerät durch die Sicherung ersetzen? (${Object.keys(days).length} Tage)`)) return;
+    state = { v: 2, profile: sanitizeProfile(data.profile), days };
     save(); writeProfileForm(); closeDialog(); route();
     toast(`Wiederhergestellt: ${Object.keys(state.days).length} Tage.`);
+  }
+
+  function sanitizeProfile(p) {
+    const out = { ...DEFAULT_PROFILE };
+    for (const k in DEFAULT_PROFILE) {
+      if (!(k in p)) continue;
+      const def = DEFAULT_PROFILE[k], v = p[k];
+      if (Array.isArray(def)) out[k] = Array.isArray(v) ? v.filter((x) => typeof x === "string").slice(0, 50) : [];
+      else if (typeof def === "boolean") out[k] = v === true;
+      else out[k] = v == null ? "" : String(v).slice(0, 200);
+    }
+    return out;
+  }
+  function sanitizeDays(src) {
+    const out = {};
+    if (!src || typeof src !== "object") return out;
+    const n = (v) => { const x = Number(v); return Number.isFinite(x) ? x : 0; };
+    for (const k of Object.keys(src)) {
+      const d = src[k];
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(k) || !d || typeof d !== "object") continue;
+      const o = {};
+      if (n(d.w) >= 35 && n(d.w) <= 350) o.w = Math.round(n(d.w) * 10) / 10;
+      if (n(d.steps) > 0) o.steps = Math.round(n(d.steps));
+      if (n(d.met) > 0) o.met = n(d.met);
+      if (n(d.min) > 0) o.min = Math.round(n(d.min));
+      if (n(d.sp) > 0) o.sp = Math.round(n(d.sp));
+      if (Array.isArray(d.food)) {
+        const f = d.food.filter((x) => x && typeof x === "object" && n(x.k) > 0)
+          .map((x) => ({ n: String(x.n || "").slice(0, 40), k: Math.round(n(x.k)), t: String(x.t || "").slice(0, 5) }));
+        if (f.length) o.food = f;
+      }
+      if (Object.keys(o).length) out[k] = o;
+    }
+    return out;
   }
 
   $("#btn-reset").addEventListener("click", () => {
@@ -686,7 +729,7 @@
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") { wasToday = viewDay === today(); return; }
     if (wasToday || viewDay > today()) viewDay = today();
-    route();
+    route(true);
   });
 
   // Updates „aus der Luft“

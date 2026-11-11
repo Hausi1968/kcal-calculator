@@ -27,6 +27,10 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -53,7 +57,7 @@ public class MainActivity extends Activity {
     private volatile boolean trustedPage = false;      // Brücke nur für die eigene Seite
     private boolean clearHistoryAfterLoad = false;
     private ValueCallback<Uri[]> fileCallback;
-    private String pendingSaveText;
+    private static final String PENDING_FILE = "pending-export.json";   // überlebt, falls Android die App beendet
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -156,15 +160,22 @@ public class MainActivity extends Activity {
             fileCallback.onReceiveValue(u != null ? new Uri[]{u} : null);
             fileCallback = null;
         } else if (requestCode == REQ_SAVE) {
-            String text = pendingSaveText;
-            pendingSaveText = null;
-            if (resultCode != RESULT_OK || data == null || data.getData() == null || text == null) return;
-            try (OutputStream os = getContentResolver().openOutputStream(data.getData(), "wt")) {
-                if (os == null) throw new IllegalStateException();
-                os.write(text.getBytes(StandardCharsets.UTF_8));
-                Toast.makeText(this, "Sicherung gespeichert", Toast.LENGTH_SHORT).show();
-            } catch (Exception e) {
-                Toast.makeText(this, "Speichern fehlgeschlagen", Toast.LENGTH_LONG).show();
+            File pending = new File(getCacheDir(), PENDING_FILE);
+            try {
+                if (resultCode != RESULT_OK || data == null || data.getData() == null || !pending.exists()) return;
+                try (OutputStream os = getContentResolver().openOutputStream(data.getData(), "wt");
+                     InputStream in = new FileInputStream(pending)) {
+                    if (os == null) throw new IllegalStateException();
+                    byte[] buf = new byte[8192];
+                    int n;
+                    while ((n = in.read(buf)) > 0) os.write(buf, 0, n);
+                    Toast.makeText(this, "Sicherung gespeichert", Toast.LENGTH_SHORT).show();
+                } catch (Exception e) {
+                    Toast.makeText(this, "Speichern fehlgeschlagen", Toast.LENGTH_LONG).show();
+                }
+            } finally {
+                //noinspection ResultOfMethodCallIgnored
+                pending.delete();
             }
         }
     }
@@ -213,7 +224,12 @@ public class MainActivity extends Activity {
         public void saveFile(String name, String text) {
             if (!trustedPage || text == null || text.length() > 20_000_000) return;
             runOnUiThread(() -> {
-                pendingSaveText = text;
+                try (OutputStream os = new FileOutputStream(new File(getCacheDir(), PENDING_FILE))) {
+                    os.write(text.getBytes(StandardCharsets.UTF_8));
+                } catch (Exception e) {
+                    Toast.makeText(MainActivity.this, "Speichern fehlgeschlagen", Toast.LENGTH_LONG).show();
+                    return;
+                }
                 Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
                 i.addCategory(Intent.CATEGORY_OPENABLE);
                 i.setType("application/json");
@@ -221,7 +237,6 @@ public class MainActivity extends Activity {
                 try {
                     startActivityForResult(i, REQ_SAVE);
                 } catch (Exception e) {
-                    pendingSaveText = null;
                     Toast.makeText(MainActivity.this, "Kein Speicherort verfügbar", Toast.LENGTH_LONG).show();
                 }
             });
